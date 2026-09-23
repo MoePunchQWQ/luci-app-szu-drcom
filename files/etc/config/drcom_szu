@@ -1,0 +1,30 @@
+config drcom_szu 'main'
+	# 1 = 开机自动运行守护进程; 0 = 停用
+	option enabled '0'
+
+	# 校园网账号 / 统一身份认证密码
+	option username ''
+	option password ''
+
+	# Portal 参数（默认值适用于深圳大学非办公区，其他区域请按实际抓包结果修改）
+	option portal_host '172.30.255.42'
+	option portal_port '801'
+	option ac_ip '172.30.255.41'
+	option ac_name ''
+	option login_method '1'
+
+	# 路径（极少需要改动）
+	option status_path '/drcom/chkstatus'
+	option login_path '/eportal/portal/login'
+	option logout_path '/eportal/portal/logout'
+
+	# 留空则自动探测：IP 取到 portal_host 的路由源地址，MAC 取该出口网卡地址
+	option wlan_user_ip ''
+	option wlan_user_mac ''
+	option ifname ''
+
+	# 守护进程行为
+	option auto_login '1'
+	option interval '60'
+	option timeout '8'
+	option startup_delay '5'

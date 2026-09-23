@@ -1,0 +1,15 @@
+{
+	"luci-app-szu-drcom": {
+		"description": "Grant access to the SZU Dr.COM ePortal client configuration",
+		"read": {
+			"uci": ["drcom_szu"],
+			"file": {
+				"/tmp/szu-drcom.log": ["read"],
+				"/tmp/szu-drcom.state": ["read"]
+			}
+		},
+		"write": {
+			"uci": ["drcom_szu"]
+		}
+	}
+}
