@@ -1,5 +1,7 @@
 .smoke/
 .ref/
+.tmp/
+.preview/
 .Trash-*/
 *.ipk
 dist/

@@ -43,7 +43,7 @@ stage files/usr/share/rpcd/acl.d/luci-app-szu-drcom.json   usr/share/rpcd/acl.d/
 cat >"$CTL/control" <<EOF
 Package: $PKG_NAME
 Version: $VERSION-$RELEASE
-Depends: libc, curl, uci, luci-base, luci-lua-runtime, libuci-lua
+Depends: libc, uci, luci-base, luci-lua-runtime
 Section: net
 Architecture: all
 Maintainer: szu-drcom contributors
@@ -59,7 +59,17 @@ cat >"$CTL/postinst" <<'EOF'
 #!/bin/sh
 [ -n "$IPKG_INSTROOT" ] && exit 0
 chmod 600 /etc/config/drcom_szu 2>/dev/null
-rm -rf /tmp/luci-indexcache /tmp/luci-modulecache 2>/dev/null
+# LuCI >= 23 keeps the menu tree in /tmp/luci-indexcache.<hash>.json. Deleting
+# the bare name /tmp/luci-indexcache never matches it, so a stale tree would
+# survive every reinstall and the menu entry would never appear.
+rm -f /tmp/luci-indexcache* 2>/dev/null
+rm -rf /tmp/luci-modulecache /tmp/luci-modulecache* 2>/dev/null
+# rpcd owns /usr/share/rpcd/acl.d and the menu cache; reload (not restart,
+# which would drop an active session) makes it pick both up.
+if [ -x /etc/init.d/rpcd ]; then
+	/etc/init.d/rpcd reload >/dev/null 2>&1 || \
+		/etc/init.d/rpcd restart >/dev/null 2>&1 || true
+fi
 if [ -x /etc/init.d/uhttpd ]; then
 	/etc/init.d/uhttpd restart >/dev/null 2>&1 || true
 fi

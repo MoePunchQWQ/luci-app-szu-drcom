@@ -17,20 +17,114 @@
 <%+header%>
 
 <style>
-.szu { max-width: 1120px; }
+/*
+ * 配色跟随 LuCI 主题：优先使用主题自带的 CSS 变量（OpenWrt 23/24 起的
+ * luci-theme-bootstrap 在 :root[data-darkmode="true"] 下会自动翻转这些变量），
+ * 取不到时回退到下面自带的一套浅/深色值。
+ */
+.szu {
+	max-width: 1120px;
+
+	--szu-card:      var(--background-color-low,    #f5f5f7);
+	--szu-inset:     var(--background-color-medium, #f8fafc);
+	--szu-solid:     var(--background-color-high,   #ffffff);
+	--szu-border:    var(--border-color-low,        #e3e6ea);
+	--szu-border-2:  var(--border-color-medium,     #d0d5dd);
+	--szu-border-3:  var(--border-color-high,       #b9c0cc);
+	--szu-fg:        var(--text-color-highest,      #1f2937);
+	--szu-fg-2:      var(--text-color-high,         #475467);
+	/* 两级弱化文字不跟随主题变量：LuCI 的 --text-color-low 在浅色下是 #bfbfbf、
+	   深色下是 #404040，对比度都只有 1.7:1，11px 的提示文字会看不清 */
+	--szu-fg-3:      #667085;
+	--szu-fg-4:      #6b7280;
+	--szu-accent:    var(--primary-color-high,      #1976d2);
+	--szu-accent-2:  var(--primary-color-medium,    #1564c0);
+	--szu-on-accent: var(--on-primary-color,        #ffffff);
+
+	--szu-ok-fg: #0f7b3f;  --szu-ok-bg: #eaf7ef;  --szu-ok-bd: #bfe6cd;  --szu-ok-dot: #1f9d55;
+	--szu-err-fg: #b42318; --szu-err-bg: #fdeceb; --szu-err-bd: #f7c7c2; --szu-err-dot: #d92d20;
+	--szu-warn-fg: #b54708; --szu-warn-bg: #fef4e6; --szu-warn-bd: #f8d5ab; --szu-warn-dot: #f79009;
+	--szu-mute-fg: #475467; --szu-mute-bg: #f2f4f7; --szu-mute-bd: #d0d5dd; --szu-mute-dot: #98a2b3;
+
+	--szu-btn-hover: #eef1f5;
+	--szu-log-bg: #0f172a;
+	--szu-log-fg: #cbd5e1;
+	--szu-shadow: 0 1px 2px rgba(16, 24, 40, .04);
+	--szu-focus: rgba(25, 118, 210, .18);
+}
+
+/* 深色的三种触发方式：LuCI 官方属性、第三方主题的 .dark 类、系统偏好 */
+:root[data-darkmode="true"] .szu,
+html.dark .szu,
+body.dark .szu {
+	--szu-card:      var(--background-color-low,    #2c2c2c);
+	--szu-inset:     var(--background-color-medium, #282828);
+	--szu-solid:     var(--background-color-high,   #222222);
+	--szu-border:    var(--border-color-low,        #333333);
+	--szu-border-2:  var(--border-color-medium,     #444444);
+	--szu-border-3:  var(--border-color-high,       #555555);
+	--szu-fg:        var(--text-color-highest,      #f2f2f2);
+	--szu-fg-2:      var(--text-color-high,         #bfbfbf);
+	--szu-fg-3:      #9a9a9a;
+	--szu-fg-4:      #949494;
+	--szu-accent:    var(--primary-color-high,      #4da1c0);
+	--szu-accent-2:  var(--primary-color-medium,    #448da6);
+	--szu-on-accent: var(--on-primary-color,        #101418);
+
+	--szu-ok-fg: #34d399;  --szu-ok-bg: rgba(52, 211, 153, .14);  --szu-ok-bd: rgba(52, 211, 153, .32);  --szu-ok-dot: #34d399;
+	--szu-err-fg: #f98f8f; --szu-err-bg: rgba(248, 113, 113, .14); --szu-err-bd: rgba(248, 113, 113, .32); --szu-err-dot: #f87171;
+	--szu-warn-fg: #fbbf24; --szu-warn-bg: rgba(251, 191, 36, .13); --szu-warn-bd: rgba(251, 191, 36, .30); --szu-warn-dot: #fbbf24;
+	--szu-mute-fg: #cbd5e1; --szu-mute-bg: rgba(148, 163, 184, .14); --szu-mute-bd: rgba(148, 163, 184, .30); --szu-mute-dot: #94a3b8;
+
+	--szu-btn-hover: #383838;
+	--szu-log-bg: #0b0d12;
+	--szu-log-fg: #c8d0dc;
+	--szu-shadow: none;
+	--szu-focus: rgba(77, 161, 192, .25);
+}
+
+/* 主题没有明确表态时，跟随操作系统 */
+@media (prefers-color-scheme: dark) {
+	:root:not([data-darkmode]) .szu {
+		--szu-card: #2c2c2c;
+		--szu-inset: #282828;
+		--szu-solid: #222222;
+		--szu-border: #333333;
+		--szu-border-2: #444444;
+		--szu-border-3: #555555;
+		--szu-fg: #f2f2f2;
+		--szu-fg-2: #bfbfbf;
+		--szu-fg-3: #9a9a9a;
+		--szu-fg-4: #949494;
+		--szu-accent: #4da1c0;
+		--szu-accent-2: #448da6;
+		--szu-on-accent: #101418;
+		--szu-ok-fg: #34d399;  --szu-ok-bg: rgba(52, 211, 153, .14);  --szu-ok-bd: rgba(52, 211, 153, .32);  --szu-ok-dot: #34d399;
+		--szu-err-fg: #f98f8f; --szu-err-bg: rgba(248, 113, 113, .14); --szu-err-bd: rgba(248, 113, 113, .32); --szu-err-dot: #f87171;
+		--szu-warn-fg: #fbbf24; --szu-warn-bg: rgba(251, 191, 36, .13); --szu-warn-bd: rgba(251, 191, 36, .30); --szu-warn-dot: #fbbf24;
+		--szu-mute-fg: #cbd5e1; --szu-mute-bg: rgba(148, 163, 184, .14); --szu-mute-bd: rgba(148, 163, 184, .30); --szu-mute-dot: #94a3b8;
+		--szu-btn-hover: #383838;
+		--szu-log-bg: #0b0d12;
+		--szu-log-fg: #c8d0dc;
+		--szu-shadow: none;
+		--szu-focus: rgba(77, 161, 192, .25);
+	}
+}
+
 .szu-card {
-	background: #fff;
-	border: 1px solid #e3e6ea;
+	background: var(--szu-card);
+	border: 1px solid var(--szu-border);
 	border-radius: 12px;
 	padding: 18px 20px;
 	margin-bottom: 18px;
-	box-shadow: 0 1px 2px rgba(16, 24, 40, .04);
+	box-shadow: var(--szu-shadow);
+	transition: background-color .2s, border-color .2s;
 }
 .szu-card h2 {
 	margin: 0 0 14px;
 	font-size: 15px;
 	font-weight: 600;
-	color: #1f2937;
+	color: var(--szu-fg);
 	letter-spacing: .2px;
 }
 .szu-head {
@@ -41,6 +135,7 @@
 	gap: 12px;
 }
 .szu-head-left { display: flex; align-items: center; gap: 14px; }
+.szu-title { font-size: 13px; font-weight: 600; color: var(--szu-fg); }
 .szu-pill {
 	display: inline-flex;
 	align-items: center;
@@ -52,77 +147,77 @@
 	border: 1px solid transparent;
 }
 .szu-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
-.szu-online   { color: #0f7b3f; background: #eaf7ef; border-color: #bfe6cd; }
-.szu-online   .szu-dot { background: #1f9d55; }
-.szu-offline  { color: #b42318; background: #fdeceb; border-color: #f7c7c2; }
-.szu-offline  .szu-dot { background: #d92d20; }
-.szu-error    { color: #b54708; background: #fef4e6; border-color: #f8d5ab; }
-.szu-error    .szu-dot { background: #f79009; }
-.szu-unknown  { color: #475467; background: #f2f4f7; border-color: #d0d5dd; }
-.szu-unknown  .szu-dot { background: #98a2b3; }
-.szu-sub { font-size: 12px; color: #667085; }
+.szu-online   { color: var(--szu-ok-fg);   background: var(--szu-ok-bg);   border-color: var(--szu-ok-bd); }
+.szu-online   .szu-dot { background: var(--szu-ok-dot); }
+.szu-offline  { color: var(--szu-err-fg);  background: var(--szu-err-bg);  border-color: var(--szu-err-bd); }
+.szu-offline  .szu-dot { background: var(--szu-err-dot); }
+.szu-error    { color: var(--szu-warn-fg); background: var(--szu-warn-bg); border-color: var(--szu-warn-bd); }
+.szu-error    .szu-dot { background: var(--szu-warn-dot); }
+.szu-unknown  { color: var(--szu-mute-fg); background: var(--szu-mute-bg); border-color: var(--szu-mute-bd); }
+.szu-unknown  .szu-dot { background: var(--szu-mute-dot); }
+.szu-sub { font-size: 12px; color: var(--szu-fg-3); }
 .szu-msg {
 	margin-top: 12px;
 	padding: 10px 12px;
 	border-radius: 8px;
-	background: #f8fafc;
-	border: 1px solid #eceff3;
+	background: var(--szu-inset);
+	border: 1px solid var(--szu-border);
 	font-size: 13px;
-	color: #344054;
+	color: var(--szu-fg-2);
 	word-break: break-all;
 }
 .szu-grid {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 	gap: 1px;
-	background: #eceff3;
-	border: 1px solid #eceff3;
+	background: var(--szu-border);
+	border: 1px solid var(--szu-border);
 	border-radius: 10px;
 	overflow: hidden;
 }
-.szu-cell { background: #fff; padding: 11px 14px; }
-.szu-cell .k { font-size: 11px; color: #98a2b3; letter-spacing: .4px; }
-.szu-cell .v { font-size: 13px; color: #1f2937; margin-top: 3px; font-weight: 500; word-break: break-all; }
+.szu-cell { background: var(--szu-card); padding: 11px 14px; }
+.szu-cell .k { font-size: 11px; color: var(--szu-fg-4); letter-spacing: .4px; }
+.szu-cell .v { font-size: 13px; color: var(--szu-fg); margin-top: 3px; font-weight: 500; word-break: break-all; }
 .szu-btns { display: flex; flex-wrap: wrap; gap: 8px; }
 .szu-btn {
-	border: 1px solid #d0d5dd;
-	background: #fff;
-	color: #344054;
+	border: 1px solid var(--szu-border-2);
+	background: var(--szu-solid);
+	color: var(--szu-fg-2);
 	border-radius: 8px;
 	padding: 7px 15px;
 	font-size: 13px;
 	cursor: pointer;
 	transition: .15s;
 }
-.szu-btn:hover { background: #f4f6f9; border-color: #b9c0cc; }
+.szu-btn:hover { background: var(--szu-btn-hover); border-color: var(--szu-border-3); }
 .szu-btn:disabled { opacity: .5; cursor: not-allowed; }
-.szu-btn.primary { background: #1570ef; border-color: #1570ef; color: #fff; }
-.szu-btn.primary:hover { background: #175cd3; }
-.szu-btn.danger { background: #fff; border-color: #f7c7c2; color: #b42318; }
-.szu-btn.danger:hover { background: #fdeceb; }
+.szu-btn.primary { background: var(--szu-accent); border-color: var(--szu-accent); color: var(--szu-on-accent); }
+.szu-btn.primary:hover { background: var(--szu-accent-2); border-color: var(--szu-accent-2); }
+.szu-btn.danger { background: var(--szu-solid); border-color: var(--szu-err-bd); color: var(--szu-err-fg); }
+.szu-btn.danger:hover { background: var(--szu-err-bg); }
 .szu-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
 .szu-field { display: flex; flex-direction: column; gap: 5px; }
-.szu-field label { font-size: 12px; color: #475467; font-weight: 500; }
+.szu-field label { font-size: 12px; color: var(--szu-fg-2); font-weight: 500; }
 .szu-field input {
-	border: 1px solid #d0d5dd;
+	border: 1px solid var(--szu-border-3);
 	border-radius: 8px;
 	padding: 7px 10px;
 	font-size: 13px;
-	color: #1f2937;
-	background: #fff;
+	color: var(--szu-fg);
+	background: var(--szu-solid);
 	width: 100%;
 	box-sizing: border-box;
 }
-.szu-field input:focus { outline: none; border-color: #1570ef; box-shadow: 0 0 0 3px rgba(21, 112, 239, .12); }
-.szu-field .hint { font-size: 11px; color: #98a2b3; }
-.szu-check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #344054; }
-.szu-check input { width: 15px; height: 15px; }
-.szu-adv { margin-top: 16px; border-top: 1px solid #eceff3; padding-top: 12px; }
+.szu-field input:focus { outline: none; border-color: var(--szu-accent); box-shadow: 0 0 0 3px var(--szu-focus); }
+.szu-field .hint { font-size: 11px; color: var(--szu-fg-4); }
+.szu-check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--szu-fg-2); }
+.szu-check input { width: 15px; height: 15px; accent-color: var(--szu-accent); }
+.szu-adv { margin-top: 16px; border-top: 1px solid var(--szu-border); padding-top: 12px; }
 .szu-adv > summary {
 	cursor: pointer;
 	font-size: 12px;
 	font-weight: 600;
-	color: #667085;
+	color: var(--szu-fg-3);
 	list-style: none;
 	user-select: none;
 }
@@ -131,11 +226,12 @@
 .szu-adv[open] > summary::before { content: "▾ "; }
 .szu-adv .szu-form { margin-top: 14px; }
 .szu-log {
-	background: #0f172a;
-	color: #cbd5e1;
+	background: var(--szu-log-bg);
+	color: var(--szu-log-fg);
+	border: 1px solid var(--szu-border);
 	border-radius: 10px;
 	padding: 14px;
-	font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+	font-family: var(--font-mono, "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace);
 	font-size: 12px;
 	line-height: 1.65;
 	max-height: 320px;
@@ -143,15 +239,23 @@
 	white-space: pre-wrap;
 	word-break: break-all;
 }
-.szu-note { font-size: 12px; color: #667085; margin-top: 10px; }
+.szu-note { font-size: 12px; color: var(--szu-fg-3); margin-top: 10px; }
+.szu-note code {
+	background: var(--szu-inset);
+	border: 1px solid var(--szu-border);
+	border-radius: 4px;
+	padding: 1px 5px;
+	color: var(--szu-fg-2);
+	font-family: var(--font-mono, monospace);
+}
 .szu-alert {
 	border-radius: 8px;
 	padding: 10px 13px;
 	font-size: 13px;
 	margin-bottom: 16px;
 }
-.szu-alert.success { background: #eaf7ef; border: 1px solid #bfe6cd; color: #0f7b3f; }
-.szu-alert.error { background: #fdeceb; border: 1px solid #f7c7c2; color: #b42318; }
+.szu-alert.success { background: var(--szu-ok-bg); border: 1px solid var(--szu-ok-bd); color: var(--szu-ok-fg); }
+.szu-alert.error { background: var(--szu-err-bg); border: 1px solid var(--szu-err-bd); color: var(--szu-err-fg); }
 </style>
 
 <div class="cbi-map szu">
@@ -167,7 +271,7 @@
 					<span class="szu-dot"></span><span id="szu-pill-text">正在获取状态…</span>
 				</span>
 				<div>
-					<div style="font-size:13px;color:#1f2937;font-weight:600;">深圳大学校园网 Dr.COM 认证</div>
+					<div class="szu-title">深圳大学校园网 Dr.COM 认证</div>
 					<div class="szu-sub" id="szu-updated">—</div>
 				</div>
 			</div>

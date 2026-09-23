@@ -79,8 +79,44 @@ local function write_json(payload)
 	end
 end
 
-local function cursor()
-	return require("luci.model.uci").cursor()
+-- UCI is read and written through the uci(1) CLI on purpose. luci.model.uci
+-- pulls in libuci-lua, which is not shipped by every firmware (and is absent
+-- from some package repos), while uci(1) is always available -- the client
+-- script already relies on it. Keeping this out of Lua drops a dependency.
+local function shquote(value)
+	return "'" .. tostring(value or ""):gsub("'", "'\\''") .. "'"
+end
+
+-- Reads the whole section with one uci(1) call; snapshot() runs every few
+-- seconds, so forking per option would be wasteful.
+local function read_config()
+	local sys = require "luci.sys"
+	local values = {}
+	for _, name in ipairs(OPTION_NAMES) do
+		values[name] = ""
+	end
+	local dump = sys.exec(string.format("uci -q show %s 2>/dev/null", UCI_PKG)) or ""
+	for line in dump:gmatch("[^\r\n]+") do
+		local key, value = line:match("^" .. UCI_PKG .. "%.[%w_]+%.([%w_]+)%s*=%s*(.-)%s*$")
+		if key and values[key] ~= nil then
+			values[key] = (value:gsub("^'(.*)'$", "%1"):gsub('^"(.*)"$', "%1"))
+		end
+	end
+	return values
+end
+
+local function write_config(values)
+	local sys = require "luci.sys"
+	local commands = {}
+	for _, name in ipairs(OPTION_NAMES) do
+		local value = values[name]
+		if value ~= nil then
+			commands[#commands + 1] = string.format(
+				"uci -q set %s.%s.%s=%s", UCI_PKG, UCI_SEC, name, shquote(value))
+		end
+	end
+	commands[#commands + 1] = "uci -q commit " .. UCI_PKG
+	return sys.call(table.concat(commands, " ; ")) == 0
 end
 
 local function read_state()
@@ -130,15 +166,6 @@ end
 local function service_enabled()
 	local sys = require "luci.sys"
 	return sys.call("ls /etc/rc.d/S*drcom_szu >/dev/null 2>&1") == 0
-end
-
-local function read_config()
-	local uci = cursor()
-	local values = {}
-	for _, name in ipairs(OPTION_NAMES) do
-		values[name] = uci:get(UCI_PKG, UCI_SEC, name) or ""
-	end
-	return values
 end
 
 local function shell(command)
@@ -313,7 +340,7 @@ function action_index()
 			message = tr("请求令牌校验失败，请刷新页面后重试。")
 			message_type = "error"
 		else
-			local uci = cursor()
+			local new_values = {}
 			for _, name in ipairs(OPTION_NAMES) do
 				local value = http.formvalue(name)
 				if name == "enabled" or name == "auto_login" then
@@ -324,13 +351,16 @@ function action_index()
 					value = trim(value)
 				end
 				if value ~= nil then
-					uci:set(UCI_PKG, UCI_SEC, name, value)
+					new_values[name] = value
 				end
 			end
-			uci:commit(UCI_PKG)
-
-			message = tr("配置已保存。")
-			message_type = "success"
+			if write_config(new_values) then
+				message = tr("配置已保存。")
+				message_type = "success"
+			else
+				message = tr("配置写入失败，请检查 /etc/config 是否可写。")
+				message_type = "error"
+			end
 
 			if require("nixio.fs").access(INIT_PATH) then
 				shell_ok(INIT_PATH .. " restart")

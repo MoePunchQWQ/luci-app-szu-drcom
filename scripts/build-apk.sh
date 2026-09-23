@@ -45,7 +45,7 @@ URL="https://github.com/szu-drcom/luci-app-szu-drcom"
 DESCRIPTION="SZU Dr.COM ePortal campus network client with a LuCI panel"
 # Edit (or override from the environment) this list if your firmware names a
 # package differently:  DEPENDS="" sh scripts/build-apk.sh
-DEPENDS="${DEPENDS-curl uci luci-base luci-lua-runtime libuci-lua}"
+DEPENDS="${DEPENDS-uci luci-base luci-lua-runtime}"
 
 usage() {
 	cat <<EOF
@@ -210,7 +210,14 @@ done
 cat >"$CTL/.post-install" <<'EOF'
 #!/bin/sh
 chmod 600 /etc/config/drcom_szu 2>/dev/null || true
-rm -rf /tmp/luci-indexcache /tmp/luci-modulecache 2>/dev/null || true
+# LuCI >= 23 keeps the menu tree in /tmp/luci-indexcache.<hash>.json -- the bare
+# name never matches, so a stale tree would survive every reinstall.
+rm -f /tmp/luci-indexcache* 2>/dev/null || true
+rm -rf /tmp/luci-modulecache /tmp/luci-modulecache* 2>/dev/null || true
+if [ -x /etc/init.d/rpcd ]; then
+	/etc/init.d/rpcd reload >/dev/null 2>&1 || \
+		/etc/init.d/rpcd restart >/dev/null 2>&1 || true
+fi
 if [ -x /etc/init.d/uhttpd ]; then
 	/etc/init.d/uhttpd restart >/dev/null 2>&1 || true
 fi
@@ -219,7 +226,12 @@ EOF
 
 cat >"$CTL/.post-upgrade" <<'EOF'
 #!/bin/sh
-rm -rf /tmp/luci-indexcache /tmp/luci-modulecache 2>/dev/null || true
+rm -f /tmp/luci-indexcache* 2>/dev/null || true
+rm -rf /tmp/luci-modulecache /tmp/luci-modulecache* 2>/dev/null || true
+if [ -x /etc/init.d/rpcd ]; then
+	/etc/init.d/rpcd reload >/dev/null 2>&1 || \
+		/etc/init.d/rpcd restart >/dev/null 2>&1 || true
+fi
 if [ -x /etc/init.d/uhttpd ]; then
 	/etc/init.d/uhttpd restart >/dev/null 2>&1 || true
 fi
@@ -237,7 +249,8 @@ EOF
 
 cat >"$CTL/.post-deinstall" <<'EOF'
 #!/bin/sh
-rm -rf /tmp/luci-indexcache /tmp/luci-modulecache 2>/dev/null || true
+rm -f /tmp/luci-indexcache* 2>/dev/null || true
+rm -rf /tmp/luci-modulecache /tmp/luci-modulecache* 2>/dev/null || true
 exit 0
 EOF
 
