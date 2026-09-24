@@ -1,6 +1,6 @@
 # luci-app-szu-drcom
 
-An OpenWrt / ImmortalWrt Dr.COM authentication plugin for the dormitory-area campus network of **Shenzhen University (SZU)**, with a graphical LuCI control panel. This project was completed largely with the help of WorkBuddy; if you find a bug, please submit an issue.
+An OpenWrt / ImmortalWrt Dr.COM authentication plugin for the dormitory-area campus network of **Shenzhen University (SZU)**, with a graphical LuCI control panel. This project was completed largely with the help of WorkBuddy and DeepSeek Harness; if you find a bug, please submit an issue.
 
 ## Plugin features
 

@@ -1,6 +1,6 @@
 # luci-app-szu-drcom
 
-面向 **深圳大学（Shenzhen University, SZU）** 宿舍区校园网的 OpenWrt / ImmortalWrt Dr.COM 认证插件，带 LuCI 图形化控制面板。本项目高度依赖 WorkBuddy 完成，如有 bug 请提交 issue。
+面向 **深圳大学（Shenzhen University, SZU）** 宿舍区校园网的 OpenWrt / ImmortalWrt Dr.COM 认证插件，带 LuCI 图形化控制面板。本项目高度依赖 WorkBuddy 与 DeepSeek Harness 完成，如有 bug 请提交 issue。
 
 ## 插件功能
 
