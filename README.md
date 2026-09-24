@@ -24,7 +24,7 @@ files/etc/init.d/drcom_szu                   procd 服务脚本
 files/usr/bin/szu-drcom                      ePortal 客户端（ash 实现）
 files/usr/lib/lua/luci/controller/szu_drcom.lua   LuCI 控制器（菜单 + JSON 接口）
 files/usr/lib/lua/luci/view/szu_drcom/status.htm  LuCI 状态面板页面
-files/usr/share/rpcd/acl.d/...               权限声明
+files/usr/share/rpcd/acl.d/luci-app-szu-drcom.json  权限声明
 scripts/build-ipk.sh                         本地打包 ipk
 scripts/build-apk.sh                         本地打包 apk
 ```
@@ -37,17 +37,18 @@ scripts/build-apk.sh                         本地打包 apk
 首先，拉取本项目的源码，在根目录执行：
 ```sh
 sh scripts/build-ipk.sh          # 产物在 dist/ 目录
-# dist/luci-app-szu-drcom_1.0.0-1_all.ipk
+# dist/luci-app-szu-drcom_1.0.0-4_all.ipk
 ```
 
-只需要 `tar` 和 `gzip`。版本号自动从 `Makefile` 的 `PKG_VERSION` / `PKG_RELEASE` 读取。
+只需要 `tar` 和 `gzip`。版本号自动从 `Makefile` 的 `PKG_VERSION` / `PKG_RELEASE` 读取，
+**下文示例中的文件名以你自己 `Makefile` 里的版本号为准**。
 
 传到路由器安装：
 
 
 ```sh
-scp dist/luci-app-szu-drcom_1.0.0-1_all.ipk root@router:/tmp/
-ssh root@router 'opkg install /tmp/luci-app-szu-drcom_1.0.0-1_all.ipk'
+scp dist/luci-app-szu-drcom_1.0.0-4_all.ipk root@router:/tmp/
+ssh root@router 'opkg install /tmp/luci-app-szu-drcom_1.0.0-4_all.ipk'
 ```
 你也可以直接在 LuCI Web 端直接上传并安装。
 
@@ -59,14 +60,14 @@ ssh root@router 'opkg install /tmp/luci-app-szu-drcom_1.0.0-1_all.ipk'
 拉取本项目的源码，在根目录执行：
 ```sh
 sh scripts/build-apk.sh          # 产物在 dist/ 目录
-# dist/luci-app-szu-drcom-1.0.0-r2.apk
+# dist/luci-app-szu-drcom-1.0.0-r4.apk
 ```
 
 传到路由器安装（`apk` 对本地未签名的包必须加 `--allow-untrusted`）：
 
 ```sh
-scp dist/luci-app-szu-drcom-1.0.0-r2.apk root@router:/tmp/
-ssh root@router 'apk add --allow-untrusted /tmp/luci-app-szu-drcom-1.0.0-r2.apk'
+scp dist/luci-app-szu-drcom-1.0.0-r4.apk root@router:/tmp/
+ssh root@router 'apk add --allow-untrusted /tmp/luci-app-szu-drcom-1.0.0-r4.apk'
 ```
 
 脚本输出的默认是 **apk v2** 容器，实测可同时被 apk-tools 2.14.6 和 3.0.8 安装，
@@ -85,13 +86,16 @@ scp files/usr/bin/szu-drcom              root@router:/usr/bin/szu-drcom
 scp files/etc/init.d/drcom_szu           root@router:/etc/init.d/drcom_szu
 scp files/etc/config/drcom_szu           root@router:/etc/config/drcom_szu
 ssh root@router '
-  mkdir -p /usr/lib/lua/luci/controller /usr/lib/lua/luci/view/szu_drcom
+  mkdir -p /usr/lib/lua/luci/controller /usr/lib/lua/luci/view/szu_drcom /usr/share/rpcd/acl.d
   chmod +x /usr/bin/szu-drcom /etc/init.d/drcom_szu
   chmod 600 /etc/config/drcom_szu
-  rm -rf /tmp/luci-indexcache /tmp/luci-modulecache
+  rm -rf /tmp/luci-indexcache* /tmp/luci-modulecache*
+  /etc/init.d/rpcd reload
+  /etc/init.d/uhttpd restart
 '
 scp files/usr/lib/lua/luci/controller/szu_drcom.lua    root@router:/usr/lib/lua/luci/controller/szu_drcom.lua
 scp files/usr/lib/lua/luci/view/szu_drcom/status.htm   root@router:/usr/lib/lua/luci/view/szu_drcom/status.htm
+scp files/usr/share/rpcd/acl.d/luci-app-szu-drcom.json root@router:/usr/share/rpcd/acl.d/luci-app-szu-drcom.json
 ```
 
 依赖：`curl`（或 `uclient-fetch` / `wget`）、`uci`、`luci-base`、`luci-lua-runtime`。
@@ -114,7 +118,7 @@ scp files/usr/lib/lua/luci/view/szu_drcom/status.htm   root@router:/usr/lib/lua/
 ### 命令行
 
 ```sh
-szu-drcom status    # 查询在线状态，打印 online / offline
+szu-drcom status    # 查询在线状态，打印 online / offline / error（error 时退出码为 2）
 szu-drcom login     # 登录
 szu-drcom logout    # 下线
 szu-drcom probe     # 探测 Portal 参数
@@ -256,7 +260,8 @@ Lua 版本不兼容），把完整报错贴出来。
 ## 安全提示
 
 - `/etc/config/drcom_szu` 含明文密码，权限已设为 `600`，请勿上传到公开仓库
-- 日志只记录结果信息，不打印密码
+- 日志只记录结果信息，不打印密码；状态文件 `/tmp/szu-drcom.state` 权限同为 `600`
+- 状态轮询接口**不会下发明文密码**：页面上的密码框留空即表示「保持原密码不变」
 
 ## 许可
 

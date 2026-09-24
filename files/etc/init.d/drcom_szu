@@ -24,15 +24,12 @@ is_enabled() {
 }
 
 stop_service() {
-	# Make sure no stale daemon keeps writing the state file after stop.
-	local pids
-	pids="$(pidof "$PROG_NAME" 2>/dev/null)"
-	if [ -n "$pids" ]; then
-		kill $pids 2>/dev/null
-		sleep 1
-		pids="$(pidof "$PROG_NAME" 2>/dev/null)"
-		[ -n "$pids" ] && kill -9 $pids 2>/dev/null
-	fi
+	# procd stops the instance it spawned itself (rc.common signals it right
+	# after this hook), so there is no reason to pidof/kill by name here --
+	# that also took down a daemon the operator had started by hand, and a
+	# SIGKILL after one second could race an in-flight status query.
+	# Drop the state file so the panel reports "not running" instead of a
+	# stale timestamp.
 	rm -f "$STATE_FILE" 2>/dev/null
 }
 
@@ -70,7 +67,8 @@ service_triggers() {
 }
 
 boot() {
-	# Give the WAN interface time to come up before the first login attempt.
-	sleep 5
+	# WAN readiness is handled by the daemon itself, which sleeps for the
+	# configured startup_delay before the first login attempt. Sleeping here
+	# as well (a hard-coded 5 s) used to add a second, unconfigurable delay.
 	start
 }

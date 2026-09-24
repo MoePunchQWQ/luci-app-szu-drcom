@@ -34,7 +34,7 @@ stage() { # stage <src> <dest-in-ipk> <mode>
 # ---------------------------------------------------------------- data.tar.gz
 stage files/usr/bin/szu-drcom                              usr/bin/szu-drcom                               0755
 stage files/etc/init.d/drcom_szu                           etc/init.d/drcom_szu                            0755
-stage files/etc/config/drcom_szu                           etc/config/drcom_szu                            0644
+stage files/etc/config/drcom_szu                           etc/config/drcom_szu                            0600
 stage files/usr/lib/lua/luci/controller/szu_drcom.lua      usr/lib/lua/luci/controller/szu_drcom.lua       0644
 stage files/usr/lib/lua/luci/view/szu_drcom/status.htm     usr/lib/lua/luci/view/szu_drcom/status.htm      0644
 stage files/usr/share/rpcd/acl.d/luci-app-szu-drcom.json   usr/share/rpcd/acl.d/luci-app-szu-drcom.json    0644
@@ -46,45 +46,27 @@ Version: $VERSION-$RELEASE
 Depends: libc, uci, luci-base, luci-lua-runtime
 Section: net
 Architecture: all
-Maintainer: szu-drcom contributors
+Maintainer: szu-drcom contributors <moepunch39@outlook.com>
 Description: SZU Dr.COM ePortal campus network client with a LuCI panel.
  Supports one-click login/logout, an auto reconnect daemon, live status
  and logs.
-Source: https://github.com/szu-drcom/luci-app-szu-drcom
+Source: https://github.com/MoePunchQWQ/luci-app-szu-drcom
 EOF
 
 echo "/etc/config/drcom_szu" >"$CTL/conffiles"
 
-cat >"$CTL/postinst" <<'EOF'
-#!/bin/sh
-[ -n "$IPKG_INSTROOT" ] && exit 0
-chmod 600 /etc/config/drcom_szu 2>/dev/null
-# LuCI >= 23 keeps the menu tree in /tmp/luci-indexcache.<hash>.json. Deleting
-# the bare name /tmp/luci-indexcache never matches it, so a stale tree would
-# survive every reinstall and the menu entry would never appear.
-rm -f /tmp/luci-indexcache* 2>/dev/null
-rm -rf /tmp/luci-modulecache /tmp/luci-modulecache* 2>/dev/null
-# rpcd owns /usr/share/rpcd/acl.d and the menu cache; reload (not restart,
-# which would drop an active session) makes it pick both up.
-if [ -x /etc/init.d/rpcd ]; then
-	/etc/init.d/rpcd reload >/dev/null 2>&1 || \
-		/etc/init.d/rpcd restart >/dev/null 2>&1 || true
-fi
-if [ -x /etc/init.d/uhttpd ]; then
-	/etc/init.d/uhttpd restart >/dev/null 2>&1 || true
-fi
-exit 0
-EOF
+# Maintainer scripts have exactly one source of truth: the Makefile's
+# Package/$(PKG_NAME)/postinst and /prerm defines, which an SDK build ships.
+# The body is extracted from there (and un-escaped from make's "$$" quoting)
+# instead of being duplicated here, so the two can never drift apart.
+extract_hook() { # extract_hook <postinst|prerm>
+	sed -n "/^define Package\/\$(PKG_NAME)\/$1\$/,/^endef\$/p" "$ROOT/Makefile" |
+		sed '1d;$d' |
+		sed 's/\$\$/$/g'
+}
 
-cat >"$CTL/prerm" <<'EOF'
-#!/bin/sh
-[ -n "$IPKG_INSTROOT" ] && exit 0
-if [ -x /etc/init.d/drcom_szu ]; then
-	/etc/init.d/drcom_szu stop >/dev/null 2>&1 || true
-	/etc/init.d/drcom_szu disable >/dev/null 2>&1 || true
-fi
-exit 0
-EOF
+extract_hook postinst >"$CTL/postinst"
+extract_hook prerm >"$CTL/prerm"
 
 chmod 0755 "$CTL/postinst" "$CTL/prerm"
 

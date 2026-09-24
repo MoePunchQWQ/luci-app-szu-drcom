@@ -4,4 +4,5 @@
 .preview/
 .Trash-*/
 *.ipk
+*.apk
 dist/

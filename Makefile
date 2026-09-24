@@ -2,17 +2,19 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-szu-drcom
 PKG_VERSION:=1.0.0
-PKG_RELEASE:=3
-PKG_MAINTAINER:=szu-drcom contributors
+PKG_RELEASE:=4
+PKG_MAINTAINER:=szu-drcom contributors and moepunch <moepunch39@outlook.com>
 PKG_LICENSE:=MIT
 PKG_LICENSE_FILES:=LICENSE
 PKG_ARCH:=all
 
-LUCI_TITLE:=SZU Dr.COM ePortal client with LuCI panel
+# This package builds through package.mk directly, not through the LuCI
+# feed's luci.mk, so the LUCI_TITLE / LUCI_DEPENDS variables of that template
+# would be dead here: dependencies are declared exactly once, in
+# Package/$(PKG_NAME)/DEPENDS below. Only the description is shared.
 LUCI_DESCRIPTION:=Graphical LuCI client for the Shenzhen University Dr.COM \
 	ePortal campus network. Supports one-click login/logout, an auto \
 	reconnect daemon, live status and logs.
-LUCI_DEPENDS:=+uci +luci-base +luci-lua-runtime
 
 include $(INCLUDE_DIR)/package.mk
 
@@ -21,7 +23,7 @@ define Package/$(PKG_NAME)
   CATEGORY:=Network
   SUBMENU:=LuCI
   TITLE:=SZU Dr.COM ePortal client (LuCI)
-  URL:=https://github.com/szu-drcom/luci-app-szu-drcom
+  URL:=https://github.com/MoePunchQWQ/luci-app-szu-drcom
   DEPENDS:=+uci +luci-base +luci-lua-runtime
   PKGARCH:=all
 endef

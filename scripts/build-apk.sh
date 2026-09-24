@@ -40,8 +40,8 @@ ARCH="noarch"
 PKG_NAME="luci-app-szu-drcom"
 ORIGIN="$PKG_NAME"
 LICENSE="MIT"
-MAINTAINER="szu-drcom contributors"
-URL="https://github.com/szu-drcom/luci-app-szu-drcom"
+MAINTAINER="szu-drcom contributors <moepunch39@outlook.com>"
+URL="https://github.com/MoePunchQWQ/luci-app-szu-drcom"
 DESCRIPTION="SZU Dr.COM ePortal campus network client with a LuCI panel"
 # Edit (or override from the environment) this list if your firmware names a
 # package differently:  DEPENDS="" sh scripts/build-apk.sh
@@ -77,7 +77,7 @@ VERSION="$(sed -n 's/^PKG_VERSION:=\(.*\)$/\1/p' "$ROOT/Makefile" | head -n 1)"
 RELEASE="$(sed -n 's/^PKG_RELEASE:=\(.*\)$/\1/p' "$ROOT/Makefile" | head -n 1)"
 [ -n "$VERSION" ] || { echo "cannot read PKG_VERSION from Makefile" >&2; exit 1; }
 [ -n "$RELEASE" ] || RELEASE=1
-# apk spells the OpenWrt release as -rN, e.g. 1.0.0-r2
+# apk spells the OpenWrt release as -rN, e.g. 1.0.0-r4
 PKGVER="$VERSION-r$RELEASE"
 
 # Deterministic output: byte-wise sort order and a stable build date.
@@ -184,7 +184,7 @@ stage() { # stage <src> <dest-in-pkg> <mode>
 FILES=""
 stage files/usr/bin/szu-drcom                             usr/bin/szu-drcom                             0755
 stage files/etc/init.d/drcom_szu                          etc/init.d/drcom_szu                          0755
-stage files/etc/config/drcom_szu                          etc/config/drcom_szu                          0644
+stage files/etc/config/drcom_szu                          etc/config/drcom_szu                          0600
 stage files/usr/lib/lua/luci/controller/szu_drcom.lua     usr/lib/lua/luci/controller/szu_drcom.lua     0644
 stage files/usr/lib/lua/luci/view/szu_drcom/status.htm    usr/lib/lua/luci/view/szu_drcom/status.htm    0644
 stage files/usr/share/rpcd/acl.d/luci-app-szu-drcom.json  usr/share/rpcd/acl.d/luci-app-szu-drcom.json  0644
@@ -207,52 +207,35 @@ done
 
 # ------------------------------------------------------------- hook scripts
 
-cat >"$CTL/.post-install" <<'EOF'
-#!/bin/sh
-chmod 600 /etc/config/drcom_szu 2>/dev/null || true
-# LuCI >= 23 keeps the menu tree in /tmp/luci-indexcache.<hash>.json -- the bare
-# name never matches, so a stale tree would survive every reinstall.
-rm -f /tmp/luci-indexcache* 2>/dev/null || true
-rm -rf /tmp/luci-modulecache /tmp/luci-modulecache* 2>/dev/null || true
-if [ -x /etc/init.d/rpcd ]; then
-	/etc/init.d/rpcd reload >/dev/null 2>&1 || \
-		/etc/init.d/rpcd restart >/dev/null 2>&1 || true
-fi
-if [ -x /etc/init.d/uhttpd ]; then
-	/etc/init.d/uhttpd restart >/dev/null 2>&1 || true
-fi
-exit 0
-EOF
+# The hook bodies come from the Makefile's Package/$(PKG_NAME)/postinst and
+# /prerm defines -- the single source of truth shared with the SDK build and
+# with build-ipk.sh, so no copy can drift.
+extract_hook() { # extract_hook <postinst|prerm>
+	sed -n "/^define Package\/\$(PKG_NAME)\/$1\$/,/^endef\$/p" "$ROOT/Makefile" |
+		sed '1d;$d' |
+		sed 's/\$\$/$/g'
+}
 
-cat >"$CTL/.post-upgrade" <<'EOF'
-#!/bin/sh
-rm -f /tmp/luci-indexcache* 2>/dev/null || true
-rm -rf /tmp/luci-modulecache /tmp/luci-modulecache* 2>/dev/null || true
-if [ -x /etc/init.d/rpcd ]; then
-	/etc/init.d/rpcd reload >/dev/null 2>&1 || \
-		/etc/init.d/rpcd restart >/dev/null 2>&1 || true
-fi
-if [ -x /etc/init.d/uhttpd ]; then
-	/etc/init.d/uhttpd restart >/dev/null 2>&1 || true
-fi
-exit 0
-EOF
+# apk hooks differ from opkg's in two ways: there is no IPKG_INSTROOT (image
+# builds) concept to guard on, and a hook must never trip `set -e`, so the
+# body runs best-effort under an explicit `set +e`.
+write_apk_hook() { # write_apk_hook <postinst|prerm> <path>
+	{
+		printf '%s\n' '#!/bin/sh' \
+			'# Body generated from the Makefile; edit it there.' \
+			'set +e'
+		extract_hook "$1" | sed '1d;/IPKG_INSTROOT/d'
+	} >"$2"
+}
 
-cat >"$CTL/.pre-deinstall" <<'EOF'
-#!/bin/sh
-if [ -x /etc/init.d/drcom_szu ]; then
-	/etc/init.d/drcom_szu stop >/dev/null 2>&1 || true
-	/etc/init.d/drcom_szu disable >/dev/null 2>&1 || true
-fi
-exit 0
-EOF
-
-cat >"$CTL/.post-deinstall" <<'EOF'
-#!/bin/sh
-rm -f /tmp/luci-indexcache* 2>/dev/null || true
-rm -rf /tmp/luci-modulecache /tmp/luci-modulecache* 2>/dev/null || true
-exit 0
-EOF
+write_apk_hook postinst "$CTL/.post-install"
+# Upgrading an installed package runs .post-upgrade only; reuse the same body
+# so permissions and the LuCI menu cache are refreshed on every upgrade too.
+write_apk_hook postinst "$CTL/.post-upgrade"
+write_apk_hook prerm "$CTL/.pre-deinstall"
+# After the files are gone the menu must be rebuilt, so run the cache-clearing
+# body once more (its config chmod is a guarded no-op by then).
+write_apk_hook postinst "$CTL/.post-deinstall"
 
 chmod 0755 "$CTL"/.post-install "$CTL"/.post-upgrade \
            "$CTL"/.pre-deinstall "$CTL"/.post-deinstall

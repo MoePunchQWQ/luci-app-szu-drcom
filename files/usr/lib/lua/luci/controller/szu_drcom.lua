@@ -53,17 +53,10 @@ local function trim(value)
 	return tostring(value or ""):gsub("^%s+", ""):gsub("%s+$", "")
 end
 
-local function tr(text)
-	local ok, i18n = pcall(require, "luci.i18n")
-	if ok and i18n.translate then
-		return i18n.translate(text)
-	end
-	return text
-end
-
-local function msg(key, text)
-	return { key = key, text = tr(text) }
-end
+-- No translation catalog is shipped with this package (the hand-rolled ipk/apk
+-- packaging has no po2lmo step), so every user-visible string below is a
+-- literal. If this app is ever ported to menu.d JSON + JS views, switch them
+-- to the standard gettext "_"() there.
 
 -- --------------------------------------------------------------------------
 -- helpers
@@ -111,12 +104,17 @@ local function write_config(values)
 	for _, name in ipairs(OPTION_NAMES) do
 		local value = values[name]
 		if value ~= nil then
+			-- A value is passed through shquote(), but a stray CR/LF inside it
+			-- would still split the shell command line: strip them here.
 			commands[#commands + 1] = string.format(
-				"uci -q set %s.%s.%s=%s", UCI_PKG, UCI_SEC, name, shquote(value))
+				"uci -q set %s.%s.%s=%s",
+				UCI_PKG, UCI_SEC, name, shquote((value:gsub("[\r\n]", ""))))
 		end
 	end
 	commands[#commands + 1] = "uci -q commit " .. UCI_PKG
-	return sys.call(table.concat(commands, " ; ")) == 0
+	-- Join with && so a failed "uci set" is not masked by a later
+	-- "uci commit" that still succeeds: the caller reports the failure.
+	return sys.call(table.concat(commands, " && ")) == 0
 end
 
 local function read_state()
@@ -182,12 +180,15 @@ end
 -- CSRF
 -- --------------------------------------------------------------------------
 
+-- Returns false when the session token cannot even be read: an absent
+-- authtoken used to make this function succeed unconditionally, which turned
+-- the CSRF check into a no-op. Fail closed instead.
 local function valid_token()
 	local http = require "luci.http"
 	local disp = require "luci.dispatcher"
 	local expected = trim((disp.context and disp.context.authtoken) or "")
 	if expected == "" then
-		return true
+		return false
 	end
 	return trim(http.formvalue("token")) == expected
 end
@@ -199,6 +200,12 @@ end
 local function snapshot()
 	local config = read_config()
 	local state = read_state()
+
+	-- Never ship the plaintext password to the browser: this payload is
+	-- polled every few seconds. The form saves it only when the field is
+	-- non-empty; password_set merely tells the view whether one is stored.
+	config.password_set = (config.password and config.password ~= "") and 1 or 0
+	config.password = ""
 
 	return {
 		ok = true,
@@ -226,7 +233,7 @@ local function do_action(action)
 
 	if action == "login" or action == "logout" then
 		if not require("nixio.fs").access(CLIENT) then
-			return false, msg("action.clientMissing", "客户端程序缺失，请重新安装插件。")
+			return false, "客户端程序缺失，请重新安装插件。"
 		end
 		local out = shell(CLIENT .. " " .. action)
 		local ok = sys.call("test -f " .. STATE_FILE) == 0
@@ -245,30 +252,29 @@ local function do_action(action)
 			text = state.message
 		end
 		if text == "" then
-			text = tr(action == "login" and "登录指令已执行。" or "下线指令已执行。")
+			text = action == "login" and "登录指令已执行。" or "下线指令已执行。"
 		end
-		return ok, { key = "action.result", text = text }
+		return ok, text
 	end
 
 	if action == "probe" then
-		local out = shell(CLIENT .. " probe")
-		return true, { key = "action.probe", text = out }
+		return true, shell(CLIENT .. " probe")
 	end
 
 	local allowed = { start = true, stop = true, restart = true, enable = true, disable = true }
 	if not allowed[action] then
-		return false, msg("action.unsupported", "不支持的操作。")
+		return false, "不支持的操作。"
 	end
 
 	if not require("nixio.fs").access(INIT_PATH) then
-		return false, msg("action.scriptMissing", "服务脚本缺失或不可执行。")
+		return false, "服务脚本缺失或不可执行。"
 	end
 
 	if not shell_ok(INIT_PATH .. " " .. action) then
-		return false, msg("action.commandFailed", "服务命令执行失败。")
+		return false, "服务命令执行失败。"
 	end
 
-	return true, msg("action.done", "操作已提交。")
+	return true, "操作已提交。"
 end
 
 -- --------------------------------------------------------------------------
@@ -279,7 +285,7 @@ function index()
 	-- Note: "dependent" is not part of the modern menu schema (LuCI 23+ builds
 	-- the tree in ucode and ignores it), and on older LuCI it can hide a
 	-- childless node outright. Leave it unset so the entry is always visible.
-	entry({ "admin", "services", "szu_drcom" }, call("action_index"), tr("SZU DrCOM"), 60)
+	entry({ "admin", "services", "szu_drcom" }, call("action_index"), "SZU DrCOM", 60)
 
 	entry({ "admin", "services", "szu_drcom", "status" }, call("action_status")).leaf = true
 	entry({ "admin", "services", "szu_drcom", "logs" }, call("action_logs")).leaf = true
@@ -303,13 +309,13 @@ function action_do()
 
 	if http.getenv("REQUEST_METHOD") ~= "POST" then
 		http.status(405, "Method Not Allowed")
-		write_json({ ok = false, error = tr("请使用 POST 请求。") })
+		write_json({ ok = false, error = "请使用 POST 请求。" })
 		return
 	end
 
 	if not valid_token() then
 		http.status(403, "Forbidden")
-		write_json({ ok = false, error = tr("请求令牌校验失败，请刷新页面后重试。") })
+		write_json({ ok = false, error = "请求令牌校验失败，请刷新页面后重试。" })
 		return
 	end
 
@@ -318,9 +324,9 @@ function action_do()
 	local payload = snapshot()
 	payload.ok = ok
 	payload.action = action
-	payload.message = message and message.text or nil
+	payload.message = message or nil
 	if not ok then
-		payload.error = message and message.text or nil
+		payload.error = message or nil
 	end
 	write_json(payload)
 end
@@ -337,7 +343,7 @@ function action_index()
 	if http.getenv("REQUEST_METHOD") == "POST" then
 		if not valid_token() then
 			http.status(403, "Forbidden")
-			message = tr("请求令牌校验失败，请刷新页面后重试。")
+			message = "请求令牌校验失败，请刷新页面后重试。"
 			message_type = "error"
 		else
 			local new_values = {}
@@ -350,15 +356,20 @@ function action_index()
 				elseif value ~= nil then
 					value = trim(value)
 				end
+				-- An empty password field means "keep the stored one": the
+				-- form never receives the plaintext password back.
+				if name == "password" and (value == nil or value == "") then
+					value = nil
+				end
 				if value ~= nil then
 					new_values[name] = value
 				end
 			end
 			if write_config(new_values) then
-				message = tr("配置已保存。")
+				message = "配置已保存。"
 				message_type = "success"
 			else
-				message = tr("配置写入失败，请检查 /etc/config 是否可写。")
+				message = "配置写入失败，请检查 /etc/config 是否可写。"
 				message_type = "error"
 			end
 

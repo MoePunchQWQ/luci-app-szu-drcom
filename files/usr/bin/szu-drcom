@@ -115,10 +115,22 @@ hexstream() {
 	fi
 }
 
+# Is this byte value one of RFC 3986's unreserved characters
+# (A-Z a-z 0-9 "-" "." "_" "~")? Decided numerically so that decoding a byte
+# never needs `printf '\xHH'`, an escape that busybox printf supports but POSIX
+# (and dash) do not.
+is_unreserved() {
+	local n="$1"
+	{ [ "$n" -ge 65 ] && [ "$n" -le 90 ]; } ||
+		{ [ "$n" -ge 97 ] && [ "$n" -le 122 ]; } ||
+		{ [ "$n" -ge 48 ] && [ "$n" -le 57 ]; } ||
+		[ "$n" -eq 46 ] || [ "$n" -eq 95 ] || [ "$n" -eq 45 ] || [ "$n" -eq 126 ]
+}
+
 # Percent-encode a string. Unreserved characters A-Z a-z 0-9 . _ - ~ are kept
 # as-is, everything else becomes %XX on a byte basis (so UTF-8 is preserved).
 urlencode() {
-	local input hex out ch
+	local input hex oct n out
 	input="$(hexstream "$1")" || {
 		log "urlencode failed: no hexdump or od available"
 		printf '%s' "$1"
@@ -128,19 +140,26 @@ urlencode() {
 	while [ -n "$input" ]; do
 		hex="${input%${input#??}}"
 		input="${input#??}"
-		ch="$(printf "\\x$hex" 2>/dev/null)"
-		case "$ch" in
-		[A-Za-z0-9._~-]) out="$out$ch" ;;
-		*) out="$out%$(printf '%s' "$hex" | tr 'a-f' 'A-F')" ;;
-		esac
+		n=$((0x$hex))
+		if is_unreserved "$n"; then
+			# %b's \0ddd form is the POSIX-portable way to turn an octal
+			# code back into a character.
+			oct="$(printf '%03o' "$n")"
+			out="$out$(printf '%b' "\\0$oct")"
+		else
+			out="$out%$(printf '%s' "$hex" | tr 'a-f' 'A-F')"
+		fi
 	done
 	printf '%s' "$out"
 }
 
 http_get() {
 	local url="$1"
+	# No -f: on an HTTP 4xx/5xx the portal still returns a body that carries
+	# the real reason, and turning it into an empty response used to collapse
+	# every error into a misleading "no response".
 	if command -v curl >/dev/null 2>&1; then
-		curl -fsS --max-time "$TIMEOUT" -A "$USER_AGENT" \
+		curl -sS --max-time "$TIMEOUT" -A "$USER_AGENT" \
 			-H "Referer: http://${PORTAL_HOST}/" "$url" 2>/dev/null
 	elif command -v uclient-fetch >/dev/null 2>&1; then
 		uclient-fetch -q -O - --timeout="$TIMEOUT" "$url" 2>/dev/null
@@ -247,7 +266,7 @@ write_state() {
 	'' | *[!0-9]*) login_count=0 ;;
 	esac
 
-	if [ "$status" = "online" ] && [ "$1" != "$(sed -n 's/^status=//p' "$STATE_FILE" 2>/dev/null | head -n 1)" ]; then
+	if [ "$status" = "online" ] && [ "$status" != "$(sed -n 's/^status=//p' "$STATE_FILE" 2>/dev/null | head -n 1)" ]; then
 		last_login="$(date '+%Y-%m-%d %H:%M:%S')"
 		login_count=$((login_count + 1))
 	fi
@@ -263,7 +282,8 @@ write_state() {
 		echo "last_login=$last_login"
 		echo "login_count=$login_count"
 	} >"$STATE_FILE" 2>/dev/null
-	chmod 644 "$STATE_FILE" 2>/dev/null
+	# Same 600 as the config and the log: the state file carries the account.
+	chmod 600 "$STATE_FILE" 2>/dev/null
 }
 
 # ---------------------------------------------------------------------------
@@ -422,7 +442,9 @@ probe_params() {
 	echo "portal_host=${PORTAL_HOST}"
 	echo "portal_port=${PORTAL_PORT}"
 	echo "wlan_user_ip=${ip}"
-	echo "wlan_ac_ip=${AC_IP}"
+	# Not a probe result: chkstatus does not return the AC address, so this is
+	# only the value currently stored in the config.
+	echo "configured_ac_ip=${AC_IP}"
 	echo "ac_id_hint=${ac}"
 	echo "wlan_user_mac=$(normalize_mac "$mac")"
 	echo "detected_ip=$(detect_ip)"
@@ -447,8 +469,12 @@ run_daemon() {
 	local last="unknown"
 
 	load_config
-	: >"$LOG_FILE" 2>/dev/null
+	# Never truncate here: LuCI restarts the daemon on every config save, so
+	# clearing the log on start wiped the history that troubleshooting needs.
+	# Create the file if missing, then trim it to the rotation limit.
+	touch "$LOG_FILE" 2>/dev/null
 	chmod 600 "$LOG_FILE" 2>/dev/null
+	rotate_log
 
 	if [ "$STARTUP_DELAY" -gt 0 ] 2>/dev/null; then
 		sleep "$STARTUP_DELAY" 2>/dev/null
@@ -514,14 +540,26 @@ load_config
 
 case "${1:-status}" in
 status)
-	if portal_status; then
+	# 0 = online, 1 = offline, 2 = portal unreachable. "error" is reported
+	# distinctly instead of being collapsed into "offline".
+	portal_status
+	case "$?" in
+	0)
 		write_state "online" "$LAST_MSG" "$LAST_IP" "$USERNAME"
 		echo "online"
 		exit 0
-	fi
-	write_state "offline" "$LAST_MSG" "$LAST_IP" "$USERNAME"
-	echo "offline"
-	exit 1
+		;;
+	1)
+		write_state "offline" "$LAST_MSG" "" "$USERNAME"
+		echo "offline"
+		exit 1
+		;;
+	*)
+		write_state "error" "$LAST_MSG" "" "$USERNAME"
+		echo "error"
+		exit 2
+		;;
+	esac
 	;;
 login)
 	portal_login

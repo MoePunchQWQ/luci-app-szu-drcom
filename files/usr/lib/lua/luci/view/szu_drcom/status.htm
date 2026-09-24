@@ -317,8 +317,8 @@ body.dark .szu {
 				</div>
 				<div class="szu-field">
 					<label for="f-password">统一身份认证密码</label>
-					<input id="f-password" name="password" type="password" value="<%=esc(cfg.password)%>" autocomplete="new-password" />
-					<div class="hint">配置文件权限为 600，不会在日志中打印</div>
+					<input id="f-password" name="password" type="password" value="" placeholder="<%=cfg.password_set == 1 and "已保存（留空则不修改）" or ""%>" autocomplete="new-password" />
+					<div class="hint">留空则保持原密码不变；密码不会下传浏览器，也不会写入日志</div>
 				</div>
 				<div class="szu-field">
 					<label for="f-portal_host">Portal 服务器</label>
@@ -428,7 +428,9 @@ body.dark .szu {
 	};
 
 	function el(id) { return document.getElementById(id); }
-	function setText(id, v) { var n = el(id); if (n) { n.innerHTML = (v === "" || v == null) ? "—" : v; } }
+	/* textContent, never innerHTML: these values come from UCI config and from
+	   the portal response, so treating them as markup would be an XSS hole. */
+	function setText(id, v) { var n = el(id); if (n) { n.textContent = (v === "" || v == null) ? "—" : v; } }
 
 	function request(url, method, data, cb) {
 		var xhr = new XMLHttpRequest();
@@ -458,7 +460,7 @@ body.dark .szu {
 		var pill = el("szu-pill");
 		if (pill) {
 			pill.className = "szu-pill " + p.cls;
-			el("szu-pill-text").innerHTML = p.text;
+			el("szu-pill-text").textContent = p.text;
 		}
 		setText("szu-message", st.message);
 		setText("szu-updated", "更新于 " + (st.updated || "—"));
@@ -477,7 +479,7 @@ body.dark .szu {
 		request(CFG.logsUrl, "GET", {}, function (j) {
 			if (j && typeof j.logs === "string") {
 				var box = el("szu-log");
-				if (box && box.innerHTML !== j.logs) { box.textContent = j.logs; }
+				if (box && box.textContent !== j.logs) { box.textContent = j.logs; }
 			}
 		});
 	}
@@ -491,7 +493,7 @@ body.dark .szu {
 			refresh();
 			if (j && j.message) {
 				var box = el("szu-message");
-				if (box) { box.innerHTML = j.message; }
+				if (box) { box.textContent = j.message; }
 			}
 		});
 	}
